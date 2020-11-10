@@ -76,6 +76,8 @@ BEGIN_MESSAGE_MAP(Ctest04Dlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON6, &Ctest04Dlg::OnBnClickedButton6)
 	ON_BN_CLICKED(IDC_BUTTON7, &Ctest04Dlg::OnBnClickedButton7)
 	ON_BN_CLICKED(IDC_BUTTON8, &Ctest04Dlg::OnBnClickedButton8)
+	ON_BN_CLICKED(IDC_BUTTON9, &Ctest04Dlg::OnBnClickedButton9)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -112,6 +114,9 @@ BOOL Ctest04Dlg::OnInitDialog()
 
 	// TODO: 在此添加额外的初始化代码
 	CWinThread* pThread = AfxBeginThread(thePLC.ThreadProcPLC, this);  // 创建PLC线程，tjh
+
+
+	if (thePLC.m_bIsUse)  SetTimer(1000, 3000, NULL);   // 
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -173,13 +178,16 @@ void Ctest04Dlg::OnBnClickedButton1()
 	long result  = thePLC.Open();
 	if (result == 0) 
 	{
+		thePLC.m_bIsUse = false;
 		printf("\n 链接PLC错误,错误号：%d \n", result);
-		MessageBox(L"链接PLC错误！");  
+		MessageBox(L"链接PLC错误！"); 
 	    return;
 	}
+	thePLC.m_bIsUse = true;
 	
 	//IDC_STATIC_NETID
-	SetDlgItemText(IDC_STATIC_NETID, thePLC.strNetID);
+	SetDlgItemText(IDC_STATIC_NETID, thePLC.strNetID);  
+
 
 }
 
@@ -189,24 +197,21 @@ void Ctest04Dlg::OnBnClickedButton2()
 {
 	//thePLC.SetDeviceBool(RESET_PLC_SWITCH, true);// PLC 复位命令
 
-	PLCCMD  cmd = thePLC.BuildCmd(PLC_RESET, RESET_PLC_SWITCH, CMD_BOOL, true, 0, 0.0);
-	thePLC.m_cmdQueue.push(cmd);
+	PLCCMD  cmd = thePLC.BuildCmd(PLC_RESET, RESET_PLC_SWITCH, CMD_BOOL, true);
+	thePLC.ExecCmd(cmd);
 
 }
 
 void Ctest04Dlg::OnBnClickedButton3()
 {
-	//thePLC.SetDeviceBool(LIGHTING_PLC_SWITCH, true); // PLC 开灯命令
-
-	PLCCMD  cmd = thePLC.BuildCmd(PLC_LIGHT, LIGHTING_PLC_SWITCH, CMD_BOOL, true, 0, 0.0);
-	thePLC.m_cmdQueue.push(cmd);
+	PLCCMD  cmd = thePLC.BuildCmd(PLC_LIGHT, LIGHTING_PLC_SWITCH, CMD_BOOL, true);
+	thePLC.ExecCmd(cmd, true,false);
 }
 
 void Ctest04Dlg::OnBnClickedButton4()
 {
-	//thePLC.SetDeviceBool( START_FILTER_BACK_BLOW, true);  // 滤芯反吹
-	PLCCMD  cmd = thePLC.BuildCmd(PLC_FILTER_BACKBLOW, START_FILTER_BACK_BLOW, CMD_BOOL, true, 0, 0.0);
-	thePLC.m_cmdQueue.push(cmd);
+	PLCCMD  cmd = thePLC.BuildCmd(PLC_FILTER_BACKBLOW, START_FILTER_BACK_BLOW, CMD_BOOL,true);
+	thePLC.ExecCmd(cmd);
 }
 
 
@@ -215,20 +220,17 @@ void Ctest04Dlg::OnBnClickedButton5()
 {
 	//thePLC.test(START_FILTER_BACK_BLOW, true);
 	//thePLC.m_bIsUse = false;
-
-	PLCCMD  cmd = thePLC.BuildCmd(PLC_RESET, RESET_PLC_SWITCH, CMD_BOOL,true, 0, 0.0);
-	thePLC.m_cmdQueue.push(cmd);
-
+	//PLCCMD  cmd = thePLC.BuildCmd(PLC_RESET, RESET_PLC_SWITCH, CMD_BOOL,true, NULL, NULL);
+	PLCCMD  cmd = thePLC.BuildCmd(PLC_RESET, RESET_PLC_SWITCH, CMD_BOOL, true);
+	thePLC.ExecCmd(cmd);
 }
 
 
 void Ctest04Dlg::OnBnClickedButton6()
 {
 	//static int count = 1000;
-	PLCCMD  cmd = thePLC.BuildCmd(PLC_LIGHT, LIGHTING_PLC_SWITCH,CMD_BOOL,true, 0, 0.0);
-	
-	thePLC.m_cmdQueue.push(cmd);
-
+	PLCCMD  cmd = thePLC.BuildCmd(PLC_LIGHT, LIGHTING_PLC_SWITCH,CMD_BOOL,true);
+	thePLC.ExecCmd(cmd);
 }
 
 
@@ -241,12 +243,78 @@ void Ctest04Dlg::OnBnClickedButton7()
 void Ctest04Dlg::OnBnClickedButton8()
 {
 	// 滤芯反吹命令
-	PLCCMD  cmd = thePLC.BuildCmd(PLC_FILTER_BACKBLOW, START_FILTER_BACK_BLOW, CMD_BOOL, true, 0, 0.0);
-
+	PLCCMD  cmd = thePLC.BuildCmd(PLC_FILTER_BACKBLOW, START_FILTER_BACK_BLOW, CMD_BOOL, true);
 	// 清空命令队列，强制执行当前命令。
-	while (!thePLC.m_cmdQueue.empty())
-	{
-		thePLC.m_cmdQueue.pop();
+	thePLC.ExecCmd(cmd, true, true);
+}
+
+
+void Ctest04Dlg::OnBnClickedButton9()
+{
+	// 批量返回数值
+	if (!thePLC.m_bIsUse) {
+		MessageBox(_T("没有连接PLC"));
+		return;
 	}
-	thePLC.m_cmdQueue.push(cmd);
+	PLCCMD cmd = thePLC.BuildCmd( PLC_MUTIL_STATE, MACHINESTATE, CMD_MUTIL, &thePLC.m_SysVals );
+	thePLC.ExecCmd(cmd);
+
+	
+}
+
+
+void Ctest04Dlg::OnTimer(UINT_PTR nIDEvent)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+
+	if (nIDEvent == 1000) {
+
+
+
+		// 请求变量
+		PLCCMD cmd = thePLC.BuildCmd(PLC_MUTIL_STATE, MACHINESTATE, CMD_MUTIL, &thePLC.m_SysVals);
+		thePLC.ExecCmd(cmd);
+
+		
+		if (thePLC.m_bIsUse && thePLC.m_IsUpdate)
+		{
+			//IDC_CHECK1 ~22 1014--1035
+
+			((CButton*)GetDlgItem(IDC_CHECK1))->SetCheck(thePLC.m_SysVals.m_bLaser ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK2))->SetCheck(thePLC.m_SysVals.m_bHeater ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK3))->SetCheck(thePLC.m_SysVals.m_bMotor ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK4))->SetCheck(thePLC.m_SysVals.m_bAeration ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK5))->SetCheck(thePLC.m_SysVals.m_bIndicator ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK6))->SetCheck(thePLC.m_SysVals.m_bLighting ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK7))->SetCheck(thePLC.m_SysVals.m_bDoor1 ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK8))->SetCheck(thePLC.m_SysVals.m_bLock1 ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK9))->SetCheck(thePLC.m_SysVals.m_bPLCError ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK10))->SetCheck(thePLC.m_SysVals.m_bLaserError ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK11))->SetCheck(thePLC.m_SysVals.m_bArGasError ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK12))->SetCheck(thePLC.m_SysVals.m_bAirGasError ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK13))->SetCheck(thePLC.m_SysVals.m_bWindMotorError ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK14))->SetCheck(thePLC.m_SysVals.m_bSpare1 ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK15))->SetCheck(thePLC.m_SysVals.m_bSpare2 ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK16))->SetCheck(thePLC.m_SysVals.m_bSpare5 ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK17))->SetCheck(thePLC.m_SysVals.m_bMotorLimit[0] ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK18))->SetCheck(thePLC.m_SysVals.m_bMotorLimit[1] ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK19))->SetCheck(thePLC.m_SysVals.m_bMotorLimit[2] ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK20))->SetCheck(thePLC.m_SysVals.m_bMotorLimit[3] ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK21))->SetCheck(thePLC.m_SysVals.m_bMotorLimit[4] ? BST_CHECKED : BST_UNCHECKED);
+			((CButton*)GetDlgItem(IDC_CHECK22))->SetCheck(thePLC.m_SysVals.m_bMotorLimit[5] ? BST_CHECKED : BST_UNCHECKED);
+
+			CString str;
+			str.Format(_T("%5.2f"), thePLC.m_SysVals.m_fPartPosition); SetDlgItemTextW(IDC_EDIT1, str);
+			str.Format(_T("%5.2f"), thePLC.m_SysVals.m_fFeedPosition); SetDlgItemTextW(IDC_EDIT2, str);
+			str.Format(_T("%5.2f"), thePLC.m_SysVals.m_fCarrierPosition); SetDlgItemTextW(IDC_EDIT3, str);
+			str.Format(_T("%5.2f"), thePLC.m_SysVals.m_fCurrentTem); SetDlgItemTextW(IDC_EDIT4, str);
+			str.Format(_T("%5.2f"), thePLC.m_SysVals.m_fBaseTem); SetDlgItemTextW(IDC_EDIT5, str);
+			str.Format(_T("%5.2f"), thePLC.m_SysVals.m_fPressure); SetDlgItemTextW(IDC_EDIT6, str);
+			str.Format(_T("%5.2f"), thePLC.m_SysVals.m_fOxygenCont); SetDlgItemTextW(IDC_EDIT7, str);
+			str.Format(_T("%5.2f"), thePLC.m_SysVals.m_filterPressure); SetDlgItemTextW(IDC_EDIT8, str);
+			//thePLC.m_IsUpdate = false;
+		}
+	}
+
+	CDialogEx::OnTimer(nIDEvent);
 }

@@ -42,4 +42,6 @@ public:
 	afx_msg void OnBnClickedButton8();
 	// 命令队列列表
 	CListBox m_cmdList;
+	afx_msg void OnBnClickedButton9();
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 };
